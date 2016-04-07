@@ -21,6 +21,7 @@ class Network:
 
 
 def get_lis_count(artist_IDs):
+    net = Network() #Class where the data from files is stored
     listen_count = []
     for artist in artist_IDs:
         ini_count = []
@@ -28,10 +29,11 @@ def get_lis_count(artist_IDs):
             if int(l[1]) == artist:
                 ini_count.append(int(l[2]))
         listen_count.append((str(artist),ini_count))
+    return listen_count
 
 def analyse():
-    net = Network() #Class where the data from files is stored
-    numDists = 5
+
+    numDists = 10
     artist_IDs = [70, 150, 989, 16326, 144882, 194647, 389445, 390392, 511147, 532992] #List of artists to choose from
 
     # users = {} # Dictionary where user IDs are kept as keys
@@ -68,13 +70,13 @@ def analyse():
 
     # Hide these grid behind plot objects
     ax1.set_axisbelow(True)
-    ax1.set_title('A comparison ofE, Var, SD of num of listeners for every artist')
+    ax1.set_title('A comparison of-E, Var, SD of num of listeners for every artist')
     ax1.set_xlabel('The Artist ID')
     ax1.set_ylabel('Num of time played')
 
     # Now fill the boxes with desired colors
     boxColors = ['darkkhaki', 'royalblue']
-    numBoxes = numDists*2
+    numBoxes = numDists
     medians = list(range(numBoxes))
     for i in range(numBoxes):
         box = bp['boxes'][i]
@@ -107,7 +109,7 @@ def analyse():
     top = 1000
     bottom = 0
     ax1.set_ylim(bottom, top)
-    xtickNames = plt.setp(ax1, xticklabels=np.repeat(artist_str, 2))
+    xtickNames = plt.setp(ax1, xticklabels=np.repeat(artist_str, 1))
     plt.setp(xtickNames, rotation=45, fontsize=8)
 
     # Due to the Y-axis scale being different across samples, it can be
@@ -141,6 +143,8 @@ def analyse():
     for al in listen_count:
         npar = np.array(al[1])
         print str(al[0]) + ':'
+
+        print '     num of friends:' + str(npar.size)
         print '     min is:' + str(np.min(npar))
         print '     max is:' + str(np.max(npar))
         print '     std is:' + str(np.std(npar))
