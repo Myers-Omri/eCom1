@@ -225,11 +225,13 @@ if __name__ == '__main__':
     nn3 = sorted(user_list, key=lambda x: x.num_of_friends[2])
     nn4 = sorted(user_list, key=lambda x: x.num_of_friends[3])
     nn0 = b_list
-    stat_list = [nn0]#,nn1]#,nn2,nn3,nn4]
+    stat_list = [nn0,nn1]#,nn2,nn3,nn4]
 
     artist_IDss = [ '150', '989',  '194647', '390392', '511147', '532992']
 
     for i,ul in enumerate(stat_list):
+        for u in ul[:10]:
+            print "the disks before are:", u.disks
         results_file.write('********** run number {} *******\n'.format(i))
         res_f = open('net.dump', 'r')
         net = pickle.load(res_f)
@@ -244,6 +246,8 @@ if __name__ == '__main__':
             results_file.write('\n')
         results_file.write('final results: \n')
         full_run(net)
+        for u in ul[:10]:
+            print "the disks after are:", u.disks
 
 
 
