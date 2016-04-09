@@ -5,23 +5,30 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Polygon
 import csv
+import cPickle as pickle
+# from run_sim import Network
+import networkx as nx
+from sys import stdout
+from datetime import datetime
 
 
-class Network:
-    """Class that reads the data from the files user_friends.csv and
-    user_artists.csv into self.edges and self.user_artist_data,
-    respectively. self.edges is a list of lists of size two that
-    represent edges. user_artists.csv is a list of lists of size three
-    [userID, artistID, times_was_heared]."""
-    def __init__(self):
-        with open('user_friends.csv', 'rb') as csvfile:
-            self.edges = list(csv.reader(csvfile))
-        with open('user_artists.csv', 'rb') as csvfile:
-            self.user_artist_data = list(csv.reader(csvfile))
+# class Network:
+#     """Class that reads the data from the files user_friends.csv and
+#     user_artists.csv into self.edges and self.user_artist_data,
+#     respectively. self.edges is a list of lists of size two that
+#     represent edges. user_artists.csv is a list of lists of size three
+#     [userID, artistID, times_was_heared]."""
+#     def __init__(self):
+#         with open('user_friends.csv', 'rb') as csvfile:
+#             self.edges = list(csv.reader(csvfile))
+#         with open('user_artists.csv', 'rb') as csvfile:
+#             self.user_artist_data = list(csv.reader(csvfile))
 
 
 def get_lis_count(artist_IDs):
-    net = Network() #Class where the data from files is stored
+    res_f = open('net.dump', 'r')
+    net = pickle.load(res_f)
+    res_f.close()#Class where the data from files is stored
     listen_count = []
     for artist in artist_IDs:
         ini_count = []
@@ -30,6 +37,7 @@ def get_lis_count(artist_IDs):
                 ini_count.append(int(l[2]))
         listen_count.append((str(artist),ini_count))
     return listen_count
+
 
 def analyse():
 
@@ -167,6 +175,105 @@ def print_artists(artist_IDs, users_to_print):
             csv.writer(csvfile).writerow(users_to_print)
 
 
+def find_best():
+    resl = open('load_centrality.dump', 'r')
+    lc_list = pickle.load(resl)
+    resl.close()
+    resb = open('betweenness_centrality.dump', 'r')
+    bc_list = pickle.load(resb)
+    resb.close()
+
+
+    from operator import itemgetter
+    lsc = sorted(lc_list.items(), key=itemgetter(1), reverse=True)
+    # print lsc[:30]
+
+
+    lsb = sorted(bc_list.items(), key=itemgetter(1), reverse=True)
+    # print lsb[:30]
+    # print len(lsb)
+
+    lsi = set(lsc[:30]).intersection(set(lsb[:30]))
+    lssi = sorted(list(lsi), key= lambda x:x[1], reverse=True)
+
+
+    # print "lsi is: ", lssi
+    return lssi
+
+art_dict = {}
+nn=1
+
+def recursive_stat(uu, ur, netr,d, kr):
+    global art_dict
+    global nn
+
+    if kr<=0:
+        return
+    for f in netr.graph.neighbors(ur):
+        nn+=1
+        uu.num_of_friends[(d- kr)] += 1
+        u_artist_dictionary = netr.users[f].artist_list
+        for a,l in u_artist_dictionary.items():
+            tl = min(l,2000)
+            tlf = float(tl) / 2000.0
+            if a in art_dict:
+                art_dict[a] += tlf*kr
+        recursive_stat(uu, f,netr,d,kr-1)
+    return
+
+
+
+def get_stats(usr, nett, n=1):
+    global art_dict
+    global nn
+    for a in nett.artist_IDs:
+        art_dict[a] = 0
+    nn=0
+    k=n
+    recursive_stat(nett.users[usr] ,usr, nett,k, k )
+    for aaa, l  in art_dict.items():
+        nett.users[usr].artist_stats[aaa]=l
+    return (art_dict, nn)
+
+
 if __name__ == '__main__':
 
-    analyse()
+    # analyse()
+    best_users = list(find_best())
+    # for b in best_users:
+    #     print b
+
+    net = Network()
+    res_f = open('net.dump', 'w')
+    pickle.dump(net, res_f)
+    res_f.close()
+
+    # res_f = open('net.dump', 'r')
+    # net = pickle.load(res_f)
+    # res_f.close()
+    #
+    t1 = datetime.now()
+    results = []
+    i=0
+    for bu in best_users[:30]:
+        print i
+        stats = get_stats(bu[0], net,4)
+        results.append((net.users[bu[0]],stats))
+        print "stats for user {}:". format(bu[0])
+        print 'num of neigbhors:{}'.format(stats[1])
+        # for u,l in stats[0].items():
+        #     print 'artist {}: l- {} '.format(u,l)
+
+        i+=1
+
+    # saving stats for dominant users.
+    # list from the format ['user object', 'artist stats dict', 'number of neigbhors']
+    res_f = open('an_results.dump', 'w')
+    pickle.dump(results,res_f )
+    res_f.close()
+    t2 = datetime.now()
+    print "total time: {}".format((t2-t1))
+
+    # res_s = open('stats_res.dump', 'w')
+    # pickle.dump(results,res_s )
+    # res_s.close()
