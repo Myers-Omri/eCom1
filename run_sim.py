@@ -16,13 +16,17 @@ import copy as cp
 results_file = open('res_file.txt', 'w')
 
 
-def full_run(net):
+def full_run(net, art_user):
     '''
     for a given network- (graph, users, artist list) simulate the run of 6 epochs.
     :param net: initialized Network object.
     :return: None
     '''
     global results_file
+    for a_u, u_d in art_user.items():
+        for ug in u_d:
+            net.users[ug].disks[a_u] = 1
+
     total_cds =0
     for epoch in range(6):
         csales, c_edges , cupdates = net.move_time()
@@ -47,9 +51,7 @@ if __name__ == '__main__':
 
     t1 = datetime.now()
     net = Network()
-    res_f = open('net.dump', 'w')
-    pickle.dump(net,res_f )
-    res_f.close()
+
 
     res_f = open('an_results_max_f.dump', 'r')
     user_list = pickle.load(res_f)
@@ -69,6 +71,8 @@ if __name__ == '__main__':
     f_best = [u for u in user_list if u.id in sett]
     stat_list_id = [ui.id for ui in f_best]
     print "list of potential users:" , stat_list_id
+    '''list of potential users: ['138760', '263144', '375845', '649628', '160451', '909244',
+                                '386404', '939238', '468276', '209564', '837172', '965152', '756469']'''
     selects = {}
     for artist in artist_IDss:
         u_list = []
@@ -76,17 +80,27 @@ if __name__ == '__main__':
         results_file.write("artist #{}:".format(artist))
         for ua in ls[:5]:
             u_list.append(ua.id)
-            ua.add_disks([artist])
             results_file.write(str(ua.id) + ",")
         results_file.write('\n')
-        selects[int(artist)] = []
+        selects[artist] = []
         c_list = cp.copy(u_list)
         for a in c_list:
-            selects[int(artist)].append(a)
-    results_file.write('final results: \n')
-    print selects
+            selects[artist].append(a)
 
-    # full_run(net)
+    print selects
+    '''
+    {
+    532992: ['939238', '756469', '160451', '375845', '965152'],
+    511147: ['939238', '160451', '375845', '386404', '649628'],
+    150:    ['138760', '263144', '649628', '386404', '375845'],
+    194647: ['263144', '939238', '649628', '386404', '160451'],
+    390392: ['939238', '160451', '375845', '209564', '756469'],
+    989:    ['138760', '263144', '386404', '649628', '939238']
+        }
+    '''
+    net = Network(artist_IDss)
+    results_file.write('final results: \n')
+    full_run(net, selects)
 
 
     t2 = datetime.now()
