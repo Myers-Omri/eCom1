@@ -20,6 +20,9 @@ class user():
         for ast in artists:
             self.artist_stats[ast] = 0
 
+    def __str__(self):
+        return self.id
+
     def add_disks(self, artists):
         for a in artists:
             self.disks[a] = 1
@@ -49,8 +52,10 @@ class user():
         if n > 9:
             n=9
         sum =0
+        ss=0
         for i in range(n):
-            sum+=self.num_of_friends[i]
+            ss+=i
+            sum += self.num_of_friends[i]
         return sum
 
 

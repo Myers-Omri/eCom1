@@ -6,12 +6,41 @@ import csv
 from sys import stdout
 import cPickle as pickle
 from random import random
-from analytics import find_best
+# from analytics import find_best
 from datetime import datetime,time, timedelta
+import copy as cp
 
 
 
 results_file = open('res_file.txt', 'w')
+
+
+def find_best():
+    resl = open('load_centrality.dump', 'r')
+    lc_list = pickle.load(resl)
+    resl.close()
+    resb = open('betweenness_centrality.dump', 'r')
+    bc_list = pickle.load(resb)
+    resb.close()
+
+
+    from operator import itemgetter
+    lsc = sorted(lc_list.items(), key=itemgetter(1), reverse=True)
+    # print lsc[:30]
+
+
+
+
+    lsb = sorted(bc_list.items(), key=itemgetter(1), reverse=True)
+    # print lsb[:30]
+    # print len(lsb)
+
+    lsi = set(lsc).intersection(set(lsb))
+    lssi = sorted(list(lsi), key= lambda x:x[1], reverse=True)
+
+
+    # print "lsi is: ", lssi
+    return lssi
 
 def make_future_edges(g=None,users=None):
     '''create a graph with all the edges that are not in the original graph
@@ -49,18 +78,25 @@ def make_future_edges(g=None,users=None):
 
 
 
-def create_graph(edges_file = None):
+def create_graph(edges = None):
+    '''create graph with all the edges that are in the list edges (which is constructed)
+    from the csv file we received as input.
 
-    if not edges_file :
+    Args:
+        edges: list of lists in length 2 [source, target]
+    Returns:
+        G: a networkx graph data structure
+        f_edge_list: The Complement graph of G
+    '''
+    if not edges:
         reso = open('initial_graph.dump', 'r')
         G = pickle.load(reso)
         reso.close()
         f_edge_list = make_future_edges()
     else:
-        with open(edges_file, 'rb') as csvfile:
-            edges = list(csv.reader(csvfile))
+
         with open('user_artists.csv', 'rb') as csvfile:
-            all_artist_data = list(csv.reader(csvfile))
+            all_artist_data = list(csv.reader(csvfile))[1:]
         G = nx.Graph()
         users = {} # Dictionary where user IDs are kept as keys
         for edge in edges:
@@ -79,13 +115,6 @@ def create_graph(edges_file = None):
         res_f.close()
         f_edge_list = make_future_edges(G,users)
 
-        # out_edges = out_edges_g.number_of_edges()
-        # if out_edges == (len(users)*(len(users)-1)/2 - G.number_of_edges()):
-        #     print "ok len is " ,out_edges
-        # else:
-        #     print "fail le is: ", out_edges
-        #     print "instead of:", (len(users)*(len(users)-1)/2 - G.number_of_edges())
-        #
 
     return G, f_edge_list
 
@@ -93,22 +122,23 @@ def create_graph(edges_file = None):
 
 class Network:
     # artist_IDs = ['70', '150', '989', '16326', '144882', '194647', '389445', '390392', '511147', '532992'] #List of artists to choose from
-    artist_IDs = ['150', '989',  '194647', '390392', '511147', '532992'] #List of artists to choose from
+    # artist_IDs = ['150', '989',  '194647', '390392', '511147', '532992'] #List of artists to choose from
 
     """Class that reads the data from the files user_friends.csv and
     user_artists.csv into self.edges and self.user_artist_data,
     respectively. self.edges is a list of lists of size two that
     represent edges. user_artists.csv is a list of lists of size three
     [userID, artistID, times_was_heared]."""
-    def __init__(self):
+    def __init__(self, my_artists=['150', '989',  '194647', '390392', '511147', '532992']):
+        self.artist_IDs = my_artists
         with open('user_friends.csv', 'rb') as csvfile:
-            self.edges = list(csv.reader(csvfile))
+            self.edges = list(csv.reader(csvfile))[1:]
             print "edges done"
         with open('user_artists.csv', 'rb') as csvfile:
-            all_artist_data = list(csv.reader(csvfile))
-        self.user_artist_data = [x for x in all_artist_data if x[1] in Network.artist_IDs]
+            all_artist_data = list(csv.reader(csvfile))[1:]
+        self.user_artist_data = [x for x in all_artist_data if x[1] in self.artist_IDs]
         print "user_artist_data done"
-        Gg, Cg = create_graph()
+        Gg, Cg = create_graph(self.edges)
 
         self.graph = Gg
         print "graph done"
@@ -127,8 +157,12 @@ class Network:
             self.art_analisys[aa] = 0
 
     def get_artists(self, name):
+        '''calculate how many time the users listened to the artist
+        :param name: name of the user
+        :return: dictionary {'artist_ID' : number of time listened}
+        '''
         art_dic = {}
-        for art_name in Network.artist_IDs:
+        for art_name in self.artist_IDs:
             art_dic[art_name] = 0
 
         for  u ,a,l in self.user_artist_data:
@@ -138,6 +172,12 @@ class Network:
         return art_dic
 
     def update_edges(self):
+        '''
+        this function iterarte over the complement graph and check for every edge
+        if we need to add it or not according to the probability and how many common friends.
+        change the actual graph (Network.graph)
+        :return: the number of edges that we added
+        '''
         P = 0.02
         edges_to_add = []
         for e in self.c_graph.edges():
@@ -150,13 +190,23 @@ class Network:
             if r < prob:
                 edges_to_add.append(e)
         self.graph.add_edges_from(edges_to_add)
-        self.graph.remove_edges_from(edges_to_add)
+        self.c_graph.remove_edges_from(edges_to_add)
         return len(edges_to_add)
 
     def move_time(self, n=1):
+        '''
+        clculate a time lap of the system calculate the new friendships and the CDs that users buy.
+        the function only update the network at the end of the epoch.
+        :param n: number of epochs to run
+        :return: tuple of (num of CDs, num of edges, list of updates for the network.)
+        '''
         for i in range(n):
             updates = []
+            j = 0
             for u in self.users:
+                j += 1
+                r = str(j) + " \r"
+                stdout.write(r)
                 cur_friends = self.graph.neighbors(u)
                 new_disks_names = self.users[u].calc_new_disk(cur_friends,self.users, self.artist_IDs)
                 if len(new_disks_names) > 0:
@@ -178,10 +228,16 @@ class Network:
 
 
 def full_run(net):
+    '''
+    for a given network- (graph, users, artist list) simulate the run of 6 epochs.
+    :param net: initialized Network object.
+    :return: None
+    '''
     global results_file
     total_cds =0
     for epoch in range(6):
         csales, c_edges , cupdates = net.move_time()
+        print "In epoch {}: {} new connections,  Sold {} CDs \n".format(epoch, c_edges, csales)
         results_file.write( "In epoch {}: {} new connections,  Sold {} CDs \n".format(epoch, c_edges, csales))
         total_cds += csales
     results_file.write( "The total cds sales is: {}\n".format(total_cds))
@@ -195,76 +251,57 @@ def full_run(net):
 
 
 if __name__ == '__main__':
-    global results_file
-    # Gg, Cg = create_graph('user_friends.csv')
-    # Gg, Cg = create_graph()
-    # print Gg.number_of_edges(), Cg.number_of_edges()
-    # update_edes(Gg,Cg)
-    # print Gg.number_of_edges(), Cg.number_of_edges()
 
-    # net = Network()
+
+    global results_file
+
+
     t1 = datetime.now()
     net = Network()
     res_f = open('net.dump', 'w')
     pickle.dump(net,res_f )
     res_f.close()
-    # res_f = open('net.dump', 'r')
-    # net = pickle.load(res_f)
-    # res_f.close()
-    best_users = list(find_best())
-    b_list = []
-    for uu in best_users:
-        b_list.append(net.users[uu[0]])
-    res_f = open('an_results.dump', 'r')
-    res = pickle.load(res_f)
-    res_f.close()
-    user_list = [u[0] for u in res]
 
-    nn1 = sorted(user_list, key=lambda x: x.num_of_friends[0])
-    nn2 = sorted(user_list, key=lambda x: x.num_of_friends[1])
-    nn3 = sorted(user_list, key=lambda x: x.num_of_friends[2])
-    nn4 = sorted(user_list, key=lambda x: x.num_of_friends[3])
-    nn0 = b_list
-    stat_list = [nn0,nn1]#,nn2,nn3,nn4]
+    res_f = open('an_results_max_f.dump', 'r')
+    user_list = pickle.load(res_f)
+    res_f.close()
+
+    nn4 = sorted(user_list, key=lambda x: x.get_num_of_friends_in_dist(4), reverse=True)
+    nn1 = sorted(user_list, key=lambda x: x.get_num_of_friends_in_dist(1), reverse=True)
+
 
     artist_IDss = [ '150', '989',  '194647', '390392', '511147', '532992']
 
-    for i,ul in enumerate(stat_list):
-        for u in ul[:10]:
-            print "the disks before are:", u.disks
-        results_file.write('********** run number {} *******\n'.format(i))
-        res_f = open('net.dump', 'r')
-        net = pickle.load(res_f)
-        res_f.close()
-        f_best = ul[:10]
-        for artist in artist_IDss:
-            ls = sorted(f_best, key=lambda x: x.artist_stats[artist], reverse=True)
-            results_file.write("artist #{}:".format(artist))
-            for ua in ls[:6]:
-                ua.add_disks([artist])
-                results_file.write(str(ua.id) + ",")
-            results_file.write('\n')
-        results_file.write('final results: \n')
-        full_run(net)
-        for u in ul[:10]:
-            print "the disks after are:", u.disks
 
-
-
-
+    a_best = nn4[:25]
+    s_best = nn1[:15]
+    sett = set([x.id for x in a_best]).intersection(set([y.id for y in s_best]))
+    # print [(z.get_num_of_friends_in_dist(4), z.get_num_of_friends_in_dist(1)) for z in f_best if z.id in sett]
+    f_best = [u for u in user_list if u.id in sett]
+    stat_list_id = [ui.id for ui in f_best]
+    print "list of potential users:" , stat_list_id
+    selects = {}
+    for artist in artist_IDss:
+        u_list = []
+        ls = sorted(f_best, key=lambda x: x.artist_stats[artist], reverse=True)
+        results_file.write("artist #{}:".format(artist))
+        for ua in ls[:5]:
+            u_list.append(ua.id)
+            ua.add_disks([artist])
+            results_file.write(str(ua.id) + ",")
+        results_file.write('\n')
+        selects[int(artist)] = []
+        c_list = cp.copy(u_list)
+        for a in c_list:
+            selects[int(artist)].append(a)
+    results_file.write('final results: \n')
+    print selects
 
     # full_run(net)
+
+
     t2 = datetime.now()
-    print 'took {} times to run'.format((t2-t1))
-    # run_sim(net,best_users)
-    # lc = nx.load_centrality(net.graph)
-    # res_l = open('load_centrality.dump', 'w')
-    # pickle.dump(lc,res_l )
-    # res_l.close()
-    #
-    # bc = nx.betweenness_centrality(net.graph)
-    # res_b = open('betweenness_centrality.dump', 'w')
-    # pickle.dump(lc,res_b )
-    # res_b.close()
+    results_file.write( 'took {} min to run'.format((t2-t1)))
+    results_file.close()
 
 

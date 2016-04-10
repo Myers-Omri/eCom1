@@ -6,29 +6,20 @@ import numpy as np
 from matplotlib.patches import Polygon
 import csv
 import cPickle as pickle
-# from run_sim import Network
+from run_sim import Network, find_best
 import networkx as nx
 from sys import stdout
 from datetime import datetime
 
 
-# class Network:
-#     """Class that reads the data from the files user_friends.csv and
-#     user_artists.csv into self.edges and self.user_artist_data,
-#     respectively. self.edges is a list of lists of size two that
-#     represent edges. user_artists.csv is a list of lists of size three
-#     [userID, artistID, times_was_heared]."""
-#     def __init__(self):
-#         with open('user_friends.csv', 'rb') as csvfile:
-#             self.edges = list(csv.reader(csvfile))
-#         with open('user_artists.csv', 'rb') as csvfile:
-#             self.user_artist_data = list(csv.reader(csvfile))
+
 
 
 def get_lis_count(artist_IDs):
-    res_f = open('net.dump', 'r')
-    net = pickle.load(res_f)
-    res_f.close()#Class where the data from files is stored
+    # res_f = open('net.dump', 'r')
+    # net = pickle.load(res_f)
+    # res_f.close()#Class where the data from files is stored
+    net = Network(['70', '150', '989', '16326', '144882', '194647', '389445', '390392', '511147', '532992'])
     listen_count = []
     for artist in artist_IDs:
         ini_count = []
@@ -41,21 +32,18 @@ def get_lis_count(artist_IDs):
 
 def analyse():
 
+    '''
+    this function collect the data about the artists and draw boxplots that illustrate the
+    statistics info and make it easier to decide which user to chose our selction is based on the
+    number of users that listen to the artist the average and median more than the actual number of
+     times the songs are played.
+    :return: Draw a boxplot with sd,avg,med
+    '''
+
     numDists = 10
     artist_IDs = [70, 150, 989, 16326, 144882, 194647, 389445, 390392, 511147, 532992] #List of artists to choose from
 
-    # users = {} # Dictionary where user IDs are kept as keys
-    # for edge in net.edges:
-    #     users[edge[0]] = True
-    #
-    # friends_count = []
-    # for user in users:
-    #     """This for calculates the number of friend of each user"""
-    #     neighbours = 0
-    #     for edge in net.edges:
-    #         if user in edge:
-    #             neighbours += 1
-    #     friends_count.append((user, neighbours/2))
+
 
     listen_count = get_lis_count(artist_IDs)
 
@@ -133,13 +121,8 @@ def analyse():
                  horizontalalignment='center', size='x-small', weight=weights[k],
                  color=boxColors[k])
 
-    # Finally, add a basic legend
-    plt.figtext(0.80, 0.08, str(500) + ' Random Numbers',
-                backgroundcolor=boxColors[0], color='black', weight='roman',
-                size='x-small')
-    plt.figtext(0.80, 0.045, 'IID Bootstrap Resample',
-                backgroundcolor=boxColors[1],
-                color='white', weight='roman', size='x-small')
+    # Finally, a basic legend
+
     plt.figtext(0.80, 0.015, '*', color='white', backgroundcolor='silver',
                 weight='roman', size='medium')
     plt.figtext(0.815, 0.013, ' Average Value', color='black', weight='roman',
@@ -147,7 +130,7 @@ def analyse():
 
     plt.show()
 
-
+    ## print out some stats about the artists
     for al in listen_count:
         npar = np.array(al[1])
         print str(al[0]) + ':'
@@ -162,48 +145,27 @@ def analyse():
 
 
 
-
-
-
-    # max_branch = sorted(friends_count, key=lambda x: x[1])[-5:] # First five users with the biggest number of friends
-    # users_to_print = map(lambda x: x[0], max_branch)
-    #
-
 def print_artists(artist_IDs, users_to_print):
     for artist in artist_IDs[:6]:
         with open('artist_' + str(artist), 'wb') as csvfile:
             csv.writer(csvfile).writerow(users_to_print)
 
 
-def find_best():
-    resl = open('load_centrality.dump', 'r')
-    lc_list = pickle.load(resl)
-    resl.close()
-    resb = open('betweenness_centrality.dump', 'r')
-    bc_list = pickle.load(resb)
-    resb.close()
 
-
-    from operator import itemgetter
-    lsc = sorted(lc_list.items(), key=itemgetter(1), reverse=True)
-    # print lsc[:30]
-
-
-    lsb = sorted(bc_list.items(), key=itemgetter(1), reverse=True)
-    # print lsb[:30]
-    # print len(lsb)
-
-    lsi = set(lsc[:30]).intersection(set(lsb[:30]))
-    lssi = sorted(list(lsi), key= lambda x:x[1], reverse=True)
-
-
-    # print "lsi is: ", lssi
-    return lssi
 
 art_dict = {}
 nn=1
 
 def recursive_stat(uu, ur, netr,d, kr):
+    '''
+    recursively calculate the stats about a selected user.
+    :param uu: user object
+    :param ur: user name
+    :param netr: net object
+    :param d: the distance we analise
+    :param kr: current level
+    :return: modify global vars and the user list in net object
+    '''
     global art_dict
     global nn
 
@@ -237,43 +199,42 @@ def get_stats(usr, nett, n=1):
 
 
 if __name__ == '__main__':
+    selection = raw_input("Analyse or Get stats? A-S")
+    if selection == 'A':
+        analyse()
+    else:
+        net = Network()
+        user_dict = {}
+        for u in net.graph.nodes():
+            user_dict[u] = len(net.graph.neighbors(u))
 
-    # analyse()
-    best_users = list(find_best())
-    # for b in best_users:
-    #     print b
+        sorted_user_list = sorted(user_dict.items(), key= lambda x : x[1], reverse=True)
+        top_30 = sorted_user_list[:30]
 
-    net = Network()
-    res_f = open('net.dump', 'w')
-    pickle.dump(net, res_f)
-    res_f.close()
+        t1 = datetime.now()
+        results = []
+        i=0
+        '''for the useres with largest number of close friends make the statistics for the 4 level friends (all users that
+        are in distance 4 from the root.
+        '''
+        for bu in top_30:
+            print i
+            stats = get_stats(bu[0], net,4)
+            results.append(net.users[bu[0]])
+            print "stats for user {}:". format(bu[0])
+            print 'num of neigbhors:{}'.format(stats[1])
+            for u in net.users[bu[0]].artist_stats:
+                print 'artist {}: l- {} '.format(u,net.users[bu[0]].artist_stats[u])
 
-    # res_f = open('net.dump', 'r')
-    # net = pickle.load(res_f)
-    # res_f.close()
-    #
-    t1 = datetime.now()
-    results = []
-    i=0
-    for bu in best_users[:30]:
-        print i
-        stats = get_stats(bu[0], net,4)
-        results.append((net.users[bu[0]],stats))
-        print "stats for user {}:". format(bu[0])
-        print 'num of neigbhors:{}'.format(stats[1])
-        # for u,l in stats[0].items():
-        #     print 'artist {}: l- {} '.format(u,l)
+            i+=1
 
-        i+=1
 
-    # saving stats for dominant users.
-    # list from the format ['user object', 'artist stats dict', 'number of neigbhors']
-    res_f = open('an_results.dump', 'w')
-    pickle.dump(results,res_f )
-    res_f.close()
-    t2 = datetime.now()
-    print "total time: {}".format((t2-t1))
+        #save the results
+        res_f = open('an_results_max_f.dump', 'w')
+        pickle.dump(results,res_f )
+        res_f.close()
 
-    # res_s = open('stats_res.dump', 'w')
-    # pickle.dump(results,res_s )
-    # res_s.close()
+
+        t2 = datetime.now()
+        print "total time: {}".format((t2-t1))
+
