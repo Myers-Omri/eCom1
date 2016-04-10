@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib.patches import Polygon
 import csv
 import cPickle as pickle
-from run_sim import Network, find_best
+from run_sim import Network
 import networkx as nx
 from sys import stdout
 from datetime import datetime
